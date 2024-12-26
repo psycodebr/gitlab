@@ -1,0 +1,58 @@
+version: '3'
+
+services:
+  gitlab:
+    image: gitlab/gitlab-ce:latest  # Usando a versão Community Edition
+    container_name: gitlab
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:8929'
+        gitlab_rails['gitlab_shell_ssh_port'] = 22
+        gitlab_rails['gitlab_shell_ssh_host'] = 'gitlab'
+        gitlab_rails['runner'] = true
+    ports:
+      - "8929:8929"  # Porta HTTP
+      - "443:443"    # Porta HTTPS
+      - "22:22"      # Porta SSH
+    volumes:
+      - ~/gitlab/config:/etc/gitlab   # Configurações do GitLab
+      - ~/gitlab/logs:/var/log/gitlab # Logs do GitLab
+      - ~/gitlab/data:/var/opt/gitlab # Dados persistentes do GitLab
+      # - ~/gitlab/runners:/etc/gitlab-runner  # Pasta para armazenar configurações dos runners
+    restart: always
+    shm_size: '1g'  # Ajuste o tamanho da memória compartilhada, se necessário
+    deploy:
+      resources:
+        limits:
+          memory: "4096M"  # Limite de memória
+        reservations:
+          memory: "2048M"  # Memória reservada
+
+  ## Descomentar apos fazer configuraçoes necessárias para ativar.
+  # gitlab-runner:
+  #   image: gitlab/gitlab-runner:latest  # Imagem oficial do GitLab Runner
+  #   container_name: gitlab-runner
+  #   volumes:
+  #     - ~/gitlab/runners:/etc/gitlab-runner  # Para persistir configurações dos runners
+  #   restart: always
+  #   entrypoint:
+  #     - /bin/bash
+  #     - -c
+  #     - |
+  #       # Registrar o runner no GitLab
+  #       gitlab-runner register --non-interactive \
+  #         --url http://gitlab:8929/ \
+  #         --registration-token ${CI_RUNNER_REGISTRATION_TOKEN} \
+  #         --executor docker \
+  #         --docker-image "alpine:latest" \
+  #         --description "docker-runner" \
+  #         --tag-list "docker,linux" \
+  #         --run-untagged=true \
+  #         --locked=false
+  #       exec /usr/bin/gitlab-runner run
+
+volumes:
+  gitlab_config:
+  gitlab_data:
+  gitlab_logs:
+  # gitlab_runners:
