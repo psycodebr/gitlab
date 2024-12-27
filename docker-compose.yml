@@ -2,44 +2,74 @@ version: '3'
 
 services:
   gitlab:
-    image: gitlab/gitlab-ce:latest  # Usando a versão Community Edition
+    image: gitlab/gitlab-ce:latest
     container_name: gitlab
     environment:
       GITLAB_OMNIBUS_CONFIG: |
         external_url 'http://localhost:8929'
         gitlab_rails['gitlab_shell_ssh_port'] = 22
         gitlab_rails['gitlab_shell_ssh_host'] = 'gitlab'
+        gitlab_rails['require_admin_approval_after_user_signup'] = false
+        gitlab_rails['gitlab_signup_inactive'] = false
+        gitlab_rails['gitlab_signup_enabled'] = true
         gitlab_rails['runner'] = true
+        gitlab_rails['db_adapter'] = 'postgresql'
+        gitlab_rails['db_encoding'] = 'utf8'
+        gitlab_rails['db_database'] = 'gitlabhq_production'
+        gitlab_rails['db_pool'] = 10
+        gitlab_rails['db_username'] = 'gitlab'
+        gitlab_rails['db_password'] = 'gitlabpass'
+        gitlab_rails['db_host'] = 'postgres'
+        gitlab_rails['db_port'] = 5432
     ports:
-      - "8929:8929"  # Porta HTTP
-      - "443:443"    # Porta HTTPS
-      - "22:22"      # Porta SSH
+      - "8929:8929"
+      - "443:443"
+      - "22:22"
     volumes:
-      - ~/gitlab/config:/etc/gitlab   # Configurações do GitLab
-      - ~/gitlab/logs:/var/log/gitlab # Logs do GitLab
-      - ~/gitlab/data:/var/opt/gitlab # Dados persistentes do GitLab
+      - ~/gitlab/config:/etc/gitlab
+      - ~/gitlab/logs:/var/log/gitlab
+      - ~/gitlab/data:/var/opt/gitlab
+      - ./init.sh:/etc/entrypoint-init.d/init.sh  # Adicionar o script init.sh
       # - ~/gitlab/runners:/etc/gitlab-runner  # Pasta para armazenar configurações dos runners
     restart: always
-    shm_size: '1g'  # Ajuste o tamanho da memória compartilhada, se necessário
+    shm_size: '1G'
     deploy:
       resources:
         limits:
-          memory: "4096M"  # Limite de memória
+          memory: "8G"
         reservations:
-          memory: "2048M"  # Memória reservada
+          memory: "4G"
+    healthcheck:
+      test: ["CMD", "/opt/gitlab/bin/gitlab-rake", "db:migrate", "RAILS_ENV=production"]
+      interval: 30s
+      retries: 3
+      start_period: 60s
+      timeout: 30s
 
-  ## Descomentar apos fazer configuraçoes necessárias para ativar.
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_DB: gitlabhq_production
+      POSTGRES_USER: gitlab
+      POSTGRES_PASSWORD: gitlabpass
+    volumes:
+      - ~/gitlab/postgres:/var/lib/postgresql/data
+      - ./db-init-scripts:/docker-entrypoint-initdb.d 
+    restart: always
+
+  ## Descomentar apos fazer configuracoes necessárias para ativar o runner.
   # gitlab-runner:
-  #   image: gitlab/gitlab-runner:latest  # Imagem oficial do GitLab Runner
+  #   image: gitlab/gitlab-runner:latest
   #   container_name: gitlab-runner
   #   volumes:
-  #     - ~/gitlab/runners:/etc/gitlab-runner  # Para persistir configurações dos runners
+  #     - ~/gitlab/runners:/etc/gitlab-runner
   #   restart: always
   #   entrypoint:
   #     - /bin/bash
   #     - -c
   #     - |
-  #       # Registrar o runner no GitLab
   #       gitlab-runner register --non-interactive \
   #         --url http://gitlab:8929/ \
   #         --registration-token ${CI_RUNNER_REGISTRATION_TOKEN} \
@@ -51,8 +81,10 @@ services:
   #         --locked=false
   #       exec /usr/bin/gitlab-runner run
 
+
 volumes:
   gitlab_config:
   gitlab_data:
   gitlab_logs:
+  gitlab_postgres:
   # gitlab_runners:
